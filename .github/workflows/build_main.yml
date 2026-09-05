@@ -20,18 +20,57 @@
 name: "Build"
 
 on:
+  workflow_dispatch:
+    inputs:
+      leg:
+        description: "baseline (uninstrumented) or instrumented (under chalk/curiosity)"
+        type: choice
+        options: [instrumented, baseline]
+        default: instrumented
+      profile:
+        description: "CrashOverride chalk profile"
+        type: string
+        default: curiosity-tests-racecar
+      racecar_run:
+        description: "racecar correlation token, echoed into the run name"
+        type: string
+        default: ""
   push:
     branches:
     - '**'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  # The one variable that separates the arms: on baseline, action-checkout
+  # skips its Set up Chalk step entirely.
+  CHALK_ON: ${{ github.event_name == 'workflow_dispatch' && inputs.leg != 'baseline' }}
+
+run-name: "Build ${{ inputs.leg || 'push' }} ${{ inputs.racecar_run }}"
 
 jobs:
   call-build-and-test:
     permissions:
       packages: write
+      contents: read
+      id-token: write
     name: Run
     # Skip pushes to `master` on forks: the "Sync fork" button mirrors
     # apache/spark and would otherwise re-run the full build on every sync.
     if: >-
-      github.repository == 'apache/spark'
+      github.repository == 'curiosity-tests/spark'
       || github.ref != 'refs/heads/master'
     uses: ./.github/workflows/build_and_test.yml
+    with:
+      chalk_on: ${{ github.event_name == 'workflow_dispatch' && inputs.leg != 'baseline' }}
+      profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
+      # `jobs` is build_and_test.yml's own documented input ("usually set by
+      # scheduled jobs") and is how apache/spark's build_java25.yml and
+      # build_non_ansi.yml select their suites. Without it, precondition falls
+      # through to ./dev/is-changed.py, which finds no diff base under
+      # workflow_dispatch, emits "false" for every module, and skips all 14
+      # build/test jobs while the run reports success. Empty on push, so
+      # upstream's diff-driven behaviour there is untouched.
+      jobs: "${{ github.event_name == 'workflow_dispatch' && '{\"build\": \"true\"}' || '' }}"
