@@ -46,7 +46,7 @@ permissions:
 env:
   # The one variable that separates the arms: on baseline, action-checkout
   # skips its Set up Chalk step entirely.
-  CHALK_ON: ${{ github.event_name == 'workflow_dispatch' && inputs.leg != 'baseline' }}
+  CHALK_ON: ${{ inputs.leg == 'instrumented' }}
 
 run-name: "Build ${{ inputs.leg || 'push' }} ${{ inputs.racecar_run }}"
 
@@ -64,7 +64,7 @@ jobs:
       || github.ref != 'refs/heads/master'
     uses: ./.github/workflows/build_and_test.yml
     with:
-      chalk_on: ${{ (github.event_name == 'workflow_dispatch' && inputs.leg != 'baseline') && 'true' || 'false' }}
+      chalk_on: ${{ inputs.leg == 'instrumented' && 'true' || 'false' }}
       profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
       # `jobs` is build_and_test.yml's own documented input ("usually set by
       # scheduled jobs") and is how apache/spark's build_java25.yml and
@@ -73,4 +73,4 @@ jobs:
       # workflow_dispatch, emits "false" for every module, and skips all 14
       # build/test jobs while the run reports success. Empty on push, so
       # upstream's diff-driven behaviour there is untouched.
-      jobs: "${{ github.event_name == 'workflow_dispatch' && '{\"build\": \"true\"}' || '' }}"
+      jobs: "${{ 'push' == 'workflow_dispatch' && '{\"build\": \"true\"}' || '' }}"
