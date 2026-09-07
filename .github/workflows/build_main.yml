@@ -59,8 +59,13 @@ jobs:
     name: Run
     # Skip pushes to `master` on forks: the "Sync fork" button mirrors
     # apache/spark and would otherwise re-run the full build on every sync.
+    # racecar: the sync-fork guard below also blocks our own dispatch, because the
+    # fork's default branch IS master -- both clauses were false, so the run
+    # skipped and reported success. workflow_dispatch is admitted explicitly; the
+    # identity clause and the sync-fork protection are both untouched.
     if: >-
       github.repository == 'apache/spark'
+      || github.event_name == 'workflow_dispatch'
       || github.ref != 'refs/heads/master'
     uses: ./.github/workflows/build_and_test.yml
     with:
@@ -73,4 +78,8 @@ jobs:
       # workflow_dispatch, emits "false" for every module, and skips all 14
       # build/test jobs while the run reports success. Empty on push, so
       # upstream's diff-driven behaviour there is untouched.
-      jobs: "${{ 'push' == 'workflow_dispatch' && '{\"build\": \"true\"}' || '' }}"
+      # racecar: github.event_name restored. Frozen to 'push' this was always
+      # empty, so precondition fell through to ./dev/is-changed.py, which finds no
+      # diff base under workflow_dispatch and skipped every build/test job while
+      # the run reported success (the exact defect the comment above warns about).
+      jobs: "${{ github.event_name == 'workflow_dispatch' && '{\"build\": \"true\"}' || '' }}"
